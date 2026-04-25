@@ -22,8 +22,23 @@ bool FileUtils::matchesExtensions(const std::string& extension, const std::vecto
     
     for (const auto& ext : extList) {
         std::string patternLower = StringUtils::toLower(ext);
-        if (extLower == patternLower || (patternLower[0] != '.' && "." + extLower == patternLower)) {
+        
+        if (extLower == patternLower) {
             return true;
+        }
+        
+        if (patternLower[0] != '.') {
+            std::string patternWithDot = "." + patternLower;
+            if (extLower == patternWithDot) {
+                return true;
+            }
+        }
+        
+        if (extLower[0] == '.') {
+            std::string extWithoutDot = extLower.substr(1);
+            if (extWithoutDot == patternLower) {
+                return true;
+            }
         }
     }
     
@@ -70,14 +85,34 @@ bool FileUtils::shouldIncludeFile(const std::string& name, const std::string& ex
     for (const auto& excludeExt : options.excludeExtensions) {
         std::string extLower = StringUtils::toLower(extension);
         std::string patternLower = StringUtils::toLower(excludeExt);
-        if (extLower == patternLower || (patternLower[0] != '.' && "." + extLower == patternLower)) {
+        
+        if (extLower == patternLower) {
             return false;
+        }
+        
+        if (patternLower[0] != '.') {
+            std::string patternWithDot = "." + patternLower;
+            if (extLower == patternWithDot) {
+                return false;
+            }
+        }
+        
+        if (extLower[0] == '.') {
+            std::string extWithoutDot = extLower.substr(1);
+            if (extWithoutDot == patternLower) {
+                return false;
+            }
         }
     }
     
     if (!options.excludeRegex.empty()) {
-        if (matchesRegex(fullName, options.excludeRegex)) {
-            return false;
+        try {
+            std::regex regex(options.excludeRegex);
+            if (std::regex_search(fullName, regex)) {
+                return false;
+            }
+        } catch (const std::regex_error&) {
+            // Invalid regex: do not exclude (arg_parser should have already validated)
         }
     }
     
@@ -92,7 +127,13 @@ bool FileUtils::shouldIncludeFile(const std::string& name, const std::string& ex
     }
     
     if (!options.includeRegex.empty()) {
-        include = include && matchesRegex(fullName, options.includeRegex);
+        try {
+            std::regex regex(options.includeRegex);
+            include = include && std::regex_search(fullName, regex);
+        } catch (const std::regex_error&) {
+            // Invalid regex: do not include (arg_parser should have already validated)
+            include = false;
+        }
     }
     
     return include;
