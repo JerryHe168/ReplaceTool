@@ -112,7 +112,9 @@ bool FileUtils::shouldIncludeFile(const std::string& name, const std::string& ex
                 return false;
             }
         } catch (const std::regex_error&) {
-            // Invalid regex: do not exclude (arg_parser should have already validated)
+            // Invalid regex: fail-safe - do not include any files
+            // (arg_parser should have already validated, this is a safety net)
+            return false;
         }
     }
     
@@ -132,7 +134,7 @@ bool FileUtils::shouldIncludeFile(const std::string& name, const std::string& ex
             include = include && std::regex_search(fullName, regex);
         } catch (const std::regex_error&) {
             // Invalid regex: do not include (arg_parser should have already validated)
-            include = false;
+            return false;
         }
     }
     
