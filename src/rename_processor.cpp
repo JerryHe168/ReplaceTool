@@ -30,7 +30,9 @@ std::string RenameProcessor::processFileName(const std::string& name, const Rena
             break;
             
         case RenameMode::NUMBERING:
-            result = applyNumbering(result, options.numberFormat, options.startNumber, index, options.padding);
+            result = applyNumbering(result, options.numberFormat, options.startNumber, 
+                                     options.numberStep, index, options.padding,
+                                     options.numberPosition, options.insertPosition);
             break;
             
         case RenameMode::UPPERCASE:
@@ -51,7 +53,7 @@ std::string RenameProcessor::processFileName(const std::string& name, const Rena
 
 void RenameProcessor::processFiles(std::vector<FileInfo>& files, const RenameOptions& options) {
     for (size_t i = 0; i < files.size(); ++i) {
-        if (options.includeExtensions) {
+        if (options.renameWithExtension) {
             std::string fullName = files[i].name + files[i].extension;
             std::string newFullName = processFileName(fullName, options, static_cast<int>(i));
             
@@ -276,33 +278,56 @@ std::string RenameProcessor::addPrefixAndSuffix(const std::string& name, const s
 }
 
 std::string RenameProcessor::applyNumbering(const std::string& name, const std::string& format, 
-                                               int startNumber, int index, int padding) {
-    int number = startNumber + index;
+                                               int startNumber, int numberStep, int index, int padding,
+                                               NumberPosition position, int insertPos) {
+    int number = startNumber + (index * numberStep);
     std::string numStr = StringUtils::formatNumber(number, padding);
     
-    if (format.empty()) {
-        return name + "_" + numStr;
+    if (!format.empty()) {
+        std::string result = format;
+        
+        result = StringUtils::replaceAll(result, "[F]", name);
+        result = StringUtils::replaceAll(result, "[f]", name);
+        
+        bool hasNumberPlaceholder = false;
+        if (result.find("[N]") != std::string::npos || 
+            result.find("[n]") != std::string::npos) {
+            hasNumberPlaceholder = true;
+        }
+        
+        result = StringUtils::replaceAll(result, "[N]", numStr);
+        result = StringUtils::replaceAll(result, "[n]", numStr);
+        
+        if (!hasNumberPlaceholder) {
+            result = result + "_" + numStr;
+        }
+        
+        return result;
     }
     
-    std::string result = format;
-    
-    result = StringUtils::replaceAll(result, "[F]", name);
-    result = StringUtils::replaceAll(result, "[f]", name);
-    
-    bool hasNumberPlaceholder = false;
-    if (result.find("[N]") != std::string::npos || 
-        result.find("[n]") != std::string::npos) {
-        hasNumberPlaceholder = true;
+    switch (position) {
+        case NumberPosition::PREFIX:
+            return numStr + "_" + name;
+            
+        case NumberPosition::SUFFIX:
+            return name + "_" + numStr;
+            
+        case NumberPosition::INSERT: {
+            std::string result = name;
+            int pos = insertPos;
+            if (pos < 0) {
+                pos = 0;
+            }
+            if (static_cast<size_t>(pos) > result.length()) {
+                pos = static_cast<int>(result.length());
+            }
+            result.insert(static_cast<size_t>(pos), numStr);
+            return result;
+        }
+            
+        default:
+            return name + "_" + numStr;
     }
-    
-    result = StringUtils::replaceAll(result, "[N]", numStr);
-    result = StringUtils::replaceAll(result, "[n]", numStr);
-    
-    if (!hasNumberPlaceholder) {
-        result = result + "_" + numStr;
-    }
-    
-    return result;
 }
 
 std::string RenameProcessor::applyCaseTransformation(const std::string& name, RenameMode mode) {
