@@ -27,6 +27,12 @@ enum class ConflictResolution {
     AUTO_RENAME
 };
 
+enum class NumberPosition {
+    SUFFIX,
+    PREFIX,
+    INSERT
+};
+
 struct RenameOptions {
     RenameMode mode;
     std::string prefix;
@@ -36,21 +42,35 @@ struct RenameOptions {
     std::string regexPattern;
     std::string regexReplace;
     int startNumber;
+    int numberStep;
     int padding;
+    int insertPosition;
+    NumberPosition numberPosition;
     std::string numberFormat;
     std::string targetPath;
     ConflictResolution conflictResolution;
-    bool includeExtensions;
+    bool renameWithExtension;
     bool recursive;
     bool dryRun;
     bool verbose;
     
+    std::vector<std::string> filterExtensions;
+    std::vector<std::string> includePatterns;
+    std::string includeRegex;
+    std::vector<std::string> excludeNames;
+    std::vector<std::string> excludeExtensions;
+    std::string excludeRegex;
+    std::vector<std::string> excludeDirectories;
+    
     RenameOptions() : 
         mode(RenameMode::ADD_PREFIX),
         startNumber(1),
+        numberStep(1),
         padding(0),
+        insertPosition(0),
+        numberPosition(NumberPosition::SUFFIX),
         conflictResolution(ConflictResolution::SKIP),
-        includeExtensions(false),
+        renameWithExtension(false),
         recursive(false),
         dryRun(false),
         verbose(false) {}
@@ -70,6 +90,7 @@ struct FileInfo {
 class FileUtils {
 public:
     static std::vector<FileInfo> getFilesInDirectory(const std::string& path, bool recursive);
+    static std::vector<FileInfo> getFilesInDirectory(const std::string& path, bool recursive, const RenameOptions& options);
     static std::string extractDirectory(const std::string& path);
     static std::string extractFileName(const std::string& path);
     static std::string extractExtension(const std::string& path);
@@ -77,6 +98,11 @@ public:
     static bool renameFile(const std::string& oldPath, const std::string& newPath);
     static bool fileExists(const std::string& path);
     static bool isDirectory(const std::string& path);
+    static bool shouldIncludeFile(const std::string& name, const std::string& extension, 
+                                  const std::string& directory, const RenameOptions& options);
+    static bool matchesExtensions(const std::string& extension, const std::vector<std::string>& extList);
+    static bool matchesPattern(const std::string& name, const std::vector<std::string>& patterns);
+    static bool matchesRegex(const std::string& name, const std::string& regexPattern);
 };
 
 class StringUtils {
@@ -106,7 +132,9 @@ private:
     static std::string addPrefix(const std::string& name, const std::string& prefix);
     static std::string addSuffix(const std::string& name, const std::string& suffix);
     static std::string addPrefixAndSuffix(const std::string& name, const std::string& prefix, const std::string& suffix);
-    static std::string applyNumbering(const std::string& name, const std::string& format, int startNumber, int index, int padding);
+    static std::string applyNumbering(const std::string& name, const std::string& format, 
+                                       int startNumber, int numberStep, int index, int padding,
+                                       NumberPosition position, int insertPos);
     static std::string applyCaseTransformation(const std::string& name, RenameMode mode);
     static std::string getNextAutoRename(const std::string& name, int counter);
     static bool isNameUnique(size_t currentIndex, const std::string& testName, 

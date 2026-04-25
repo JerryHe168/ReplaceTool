@@ -75,8 +75,61 @@ int main(int argc, char* argv[]) {
                 break;
         }
         
-        if (options.includeExtensions) {
-            std::cout << "Include extension: Yes\n";
+        if (options.renameWithExtension) {
+            std::cout << "Rename with extension: Yes\n";
+        }
+        
+        if (!options.filterExtensions.empty()) {
+            std::cout << "Filter by extensions: ";
+            for (size_t i = 0; i < options.filterExtensions.size(); ++i) {
+                if (i > 0) std::cout << ", ";
+                std::cout << options.filterExtensions[i];
+            }
+            std::cout << "\n";
+        }
+        
+        if (!options.includePatterns.empty()) {
+            std::cout << "Include patterns: ";
+            for (size_t i = 0; i < options.includePatterns.size(); ++i) {
+                if (i > 0) std::cout << ", ";
+                std::cout << options.includePatterns[i];
+            }
+            std::cout << "\n";
+        }
+        
+        if (!options.includeRegex.empty()) {
+            std::cout << "Include regex: " << options.includeRegex << "\n";
+        }
+        
+        if (!options.excludeNames.empty()) {
+            std::cout << "Exclude names: ";
+            for (size_t i = 0; i < options.excludeNames.size(); ++i) {
+                if (i > 0) std::cout << ", ";
+                std::cout << options.excludeNames[i];
+            }
+            std::cout << "\n";
+        }
+        
+        if (!options.excludeExtensions.empty()) {
+            std::cout << "Exclude extensions: ";
+            for (size_t i = 0; i < options.excludeExtensions.size(); ++i) {
+                if (i > 0) std::cout << ", ";
+                std::cout << options.excludeExtensions[i];
+            }
+            std::cout << "\n";
+        }
+        
+        if (!options.excludeRegex.empty()) {
+            std::cout << "Exclude regex: " << options.excludeRegex << "\n";
+        }
+        
+        if (!options.excludeDirectories.empty()) {
+            std::cout << "Exclude directories: ";
+            for (size_t i = 0; i < options.excludeDirectories.size(); ++i) {
+                if (i > 0) std::cout << ", ";
+                std::cout << options.excludeDirectories[i];
+            }
+            std::cout << "\n";
         }
         
         if (options.dryRun) {
@@ -84,7 +137,7 @@ int main(int argc, char* argv[]) {
         }
         
         std::cout << "\nScanning for files...\n";
-        std::vector<FileInfo> files = FileUtils::getFilesInDirectory(options.targetPath, options.recursive);
+        std::vector<FileInfo> files = FileUtils::getFilesInDirectory(options.targetPath, options.recursive, options);
         
         if (files.empty()) {
             std::cout << "\nNo files found in directory.\n";

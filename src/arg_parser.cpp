@@ -27,7 +27,12 @@ void ArgParser::printHelp() {
     std::cout << "3. Numbering Mode:\n";
     std::cout << "   --numbering            Enable numbering mode\n";
     std::cout << "   --start <number>       Starting number (default: 1)\n";
+    std::cout << "   --step <number>        Number increment step (default: 1)\n";
     std::cout << "   --padding <digits>     Zero padding width (e.g., 3 for 001, 002)\n";
+    std::cout << "   --pos-prefix           Place number as prefix before filename\n";
+    std::cout << "   --pos-suffix           Place number as suffix after filename (default)\n";
+    std::cout << "   --pos-insert <index>   Insert number at specified index position\n";
+    std::cout << "                          Example: \"photo\" with --pos-insert 3 -> \"ph001oto\"\n";
     std::cout << "   --format <format>      Custom format, variables available:\n";
     std::cout << "                          [N] or [n] - Number\n";
     std::cout << "                          [F] or [f] - Original filename\n";
@@ -35,7 +40,8 @@ void ArgParser::printHelp() {
     std::cout << "   If no number placeholder ([N]/[n]) is found, number is appended with underscore\n";
     std::cout << "   Example: --numbering --padding 3\n";
     std::cout << "            --numbering --format \"photo_[N]\"\n";
-    std::cout << "            --numbering --format \"[F]_backup_[N]\"\n\n";
+    std::cout << "            --numbering --format \"[F]_backup_[N]\"\n";
+    std::cout << "            --numbering --pos-prefix --padding 2\n\n";
     
     std::cout << "4. Case Conversion Mode:\n";
     std::cout << "   --uppercase            Convert to UPPERCASE\n";
@@ -49,6 +55,26 @@ void ArgParser::printHelp() {
     std::cout << "   --skip-conflict        Skip files with conflicting names (default)\n";
     std::cout << "   --overwrite            Overwrite existing files (use with caution)\n";
     std::cout << "   --auto-rename          Auto-rename conflicting files (e.g., file.txt -> file (1).txt)\n\n";
+    
+    std::cout << "=== File Filter Options ===\n\n";
+    std::cout << "   --ext <ext1,ext2...>   Include only files with specified extensions\n";
+    std::cout << "                          Example: --ext \".jpg,.png,.gif\"\n\n";
+    std::cout << "   --include <pattern>    Include files containing pattern in name\n";
+    std::cout << "                          Can be used multiple times\n";
+    std::cout << "                          Example: --include \"IMG\" --include \"photo\"\n\n";
+    std::cout << "   --include-regex <regex>  Include files matching regex pattern\n";
+    std::cout << "                          Example: --include-regex \"IMG_\\\\d+\"\n\n";
+    std::cout << "   --exclude-name <name>  Exclude specific filename\n";
+    std::cout << "                          Can be used multiple times\n";
+    std::cout << "                          Example: --exclude-name \"thumbs.db\"\n\n";
+    std::cout << "   --exclude-ext <ext>    Exclude files with specified extension\n";
+    std::cout << "                          Can be used multiple times\n";
+    std::cout << "                          Example: --exclude-ext \".tmp\"\n\n";
+    std::cout << "   --exclude-regex <regex>  Exclude files matching regex pattern\n";
+    std::cout << "                          Example: --exclude-regex \"^\\\\.\" (exclude hidden files)\n\n";
+    std::cout << "   --exclude-dir <name>   Exclude specific subdirectory\n";
+    std::cout << "                          Can be used multiple times\n";
+    std::cout << "                          Example: --exclude-dir \"backup\" --exclude-dir \"temp\"\n\n";
     
     std::cout << "=== General Options ===\n\n";
     std::cout << "   -r, --recursive        Process files in subdirectories recursively\n";
@@ -64,14 +90,14 @@ void ArgParser::printHelp() {
     std::cout << "2. Add both prefix and suffix:\n";
     std::cout << "   renamer --prefix \"photo_\" --suffix \"_edited\" ./photos\n\n";
     
-    std::cout << "3. Replace \"DSC\" with \"photo\":\n";
-    std::cout << "   renamer --replace \"DSC\" \"photo\" ./photos\n\n";
+    std::cout << "3. Numbering with custom step and position:\n";
+    std::cout << "   renamer --numbering --start 100 --step 5 --padding 3 --pos-prefix ./photos\n\n";
     
-    std::cout << "4. Sequential numbering (001, 002, 003...):\n";
-    std::cout << "   renamer --numbering --padding 3 ./photos\n\n";
+    std::cout << "4. Process only image files:\n";
+    std::cout << "   renamer --lowercase --ext \".jpg,.png,.gif\" ./files\n\n";
     
-    std::cout << "5. Custom numbering format:\n";
-    std::cout << "   renamer --numbering --format \"[F]_#[N]\" ./photos\n\n";
+    std::cout << "5. Include files matching pattern and exclude temp files:\n";
+    std::cout << "   renamer --prefix \"doc_\" --include \"report\" --exclude-ext \".tmp\" ./files\n\n";
     
     std::cout << "6. Convert to lowercase with auto-rename on conflict:\n";
     std::cout << "   renamer --lowercase --auto-rename ./files\n\n";
@@ -80,6 +106,28 @@ void ArgParser::printHelp() {
     std::cout << "   renamer -r --prefix \"backup_\" -n ./documents\n\n";
     
     std::cout << std::string(60, '=') << "\n\n";
+}
+
+std::vector<std::string> splitByComma(const std::string& str) {
+    std::vector<std::string> result;
+    std::string current;
+    
+    for (char c : str) {
+        if (c == ',') {
+            if (!current.empty()) {
+                result.push_back(current);
+                current.clear();
+            }
+        } else {
+            current += c;
+        }
+    }
+    
+    if (!current.empty()) {
+        result.push_back(current);
+    }
+    
+    return result;
 }
 
 RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
@@ -155,6 +203,16 @@ RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
                 throw std::runtime_error("--start argument must be a valid number");
             }
         }
+        else if (arg == "--step") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--step requires a number argument");
+            }
+            try {
+                options.numberStep = std::stoi(argv[++i]);
+            } catch (...) {
+                throw std::runtime_error("--step argument must be a valid number");
+            }
+        }
         else if (arg == "--padding") {
             if (i + 1 >= argc) {
                 throw std::runtime_error("--padding requires a number argument");
@@ -163,6 +221,23 @@ RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
                 options.padding = std::stoi(argv[++i]);
             } catch (...) {
                 throw std::runtime_error("--padding argument must be a valid number");
+            }
+        }
+        else if (arg == "--pos-prefix") {
+            options.numberPosition = NumberPosition::PREFIX;
+        }
+        else if (arg == "--pos-suffix") {
+            options.numberPosition = NumberPosition::SUFFIX;
+        }
+        else if (arg == "--pos-insert") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--pos-insert requires an index argument");
+            }
+            try {
+                options.insertPosition = std::stoi(argv[++i]);
+                options.numberPosition = NumberPosition::INSERT;
+            } catch (...) {
+                throw std::runtime_error("--pos-insert argument must be a valid number");
             }
         }
         else if (arg == "--format") {
@@ -204,11 +279,53 @@ RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
         else if (arg == "--auto-rename") {
             options.conflictResolution = ConflictResolution::AUTO_RENAME;
         }
+        else if (arg == "--ext") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--ext requires extensions argument");
+            }
+            options.filterExtensions = splitByComma(argv[++i]);
+        }
+        else if (arg == "--include") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--include requires a pattern argument");
+            }
+            options.includePatterns.push_back(argv[++i]);
+        }
+        else if (arg == "--include-regex") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--include-regex requires a regex argument");
+            }
+            options.includeRegex = argv[++i];
+        }
+        else if (arg == "--exclude-name") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--exclude-name requires a filename argument");
+            }
+            options.excludeNames.push_back(argv[++i]);
+        }
+        else if (arg == "--exclude-ext") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--exclude-ext requires an extension argument");
+            }
+            options.excludeExtensions.push_back(argv[++i]);
+        }
+        else if (arg == "--exclude-regex") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--exclude-regex requires a regex argument");
+            }
+            options.excludeRegex = argv[++i];
+        }
+        else if (arg == "--exclude-dir") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--exclude-dir requires a directory name argument");
+            }
+            options.excludeDirectories.push_back(argv[++i]);
+        }
         else if (arg == "-r" || arg == "--recursive") {
             options.recursive = true;
         }
         else if (arg == "--include-ext") {
-            options.includeExtensions = true;
+            options.renameWithExtension = true;
         }
         else if (arg == "-n" || arg == "--dry-run") {
             options.dryRun = true;
@@ -240,11 +357,27 @@ RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
 }
 
 void ArgParser::validateOptions(const RenameOptions& options) {
-    if (options.mode == RenameMode::REGEX_REPLACE) {
+    if (options.mode == RenameMode::REGEX_REPLACE && !options.regexPattern.empty()) {
         try {
             std::regex test(options.regexPattern);
         } catch (const std::regex_error& e) {
             throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
+        }
+    }
+    
+    if (!options.includeRegex.empty()) {
+        try {
+            std::regex test(options.includeRegex);
+        } catch (const std::regex_error& e) {
+            throw std::runtime_error("Invalid include regex: " + std::string(e.what()));
+        }
+    }
+    
+    if (!options.excludeRegex.empty()) {
+        try {
+            std::regex test(options.excludeRegex);
+        } catch (const std::regex_error& e) {
+            throw std::runtime_error("Invalid exclude regex: " + std::string(e.what()));
         }
     }
 }
