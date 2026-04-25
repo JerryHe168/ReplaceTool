@@ -100,10 +100,6 @@ public:
     static std::string processFileName(const std::string& name, const RenameOptions& options, int index = 0);
     static void processFiles(std::vector<FileInfo>& files, const RenameOptions& options);
     static bool executeRename(std::vector<FileInfo>& files, const RenameOptions& options);
-    static std::string generateUniqueName(const std::string& directory, const std::string& name, 
-                                           const std::string& extension, 
-                                           const std::set<std::string>& usedNames,
-                                           ConflictResolution resolution);
     static void resolveConflicts(std::vector<FileInfo>& files, ConflictResolution resolution);
     
 private:
@@ -113,6 +109,10 @@ private:
     static std::string applyNumbering(const std::string& name, const std::string& format, int startNumber, int index, int padding);
     static std::string applyCaseTransformation(const std::string& name, RenameMode mode);
     static std::string getNextAutoRename(const std::string& name, int counter);
+    static bool isNameUnique(size_t currentIndex, const std::string& testName, 
+                               const std::string& testExtension,
+                               const std::vector<FileInfo>& files);
+    static bool checkAndResolveAllConflicts(std::vector<FileInfo>& files, ConflictResolution resolution);
 };
 
 class ArgParser {

@@ -74,7 +74,30 @@ std::string RenameProcessor::getNextAutoRename(const std::string& name, int coun
     return name + " (" + std::to_string(counter) + ")";
 }
 
-void RenameProcessor::resolveConflicts(std::vector<FileInfo>& files, ConflictResolution resolution) {
+bool RenameProcessor::isNameUnique(size_t currentIndex, const std::string& testName, 
+                                     const std::string& testExtension,
+                                     const std::vector<FileInfo>& files) {
+    std::string testFullName = testName + testExtension;
+    
+    for (size_t i = 0; i < files.size(); ++i) {
+        if (i != currentIndex) {
+            std::string fullName = files[i].newName + files[i].extension;
+            if (fullName == testFullName) {
+                return false;
+            }
+        }
+    }
+    
+    std::string fullPath = FileUtils::combinePath(files[currentIndex].directory, testName, testExtension);
+    if (FileUtils::fileExists(fullPath) && fullPath != files[currentIndex].originalPath) {
+        return false;
+    }
+    
+    return true;
+}
+
+bool RenameProcessor::checkAndResolveAllConflicts(std::vector<FileInfo>& files, ConflictResolution resolution) {
+    bool hasConflict = false;
     std::map<std::string, std::vector<size_t>> nameToIndices;
     
     for (size_t i = 0; i < files.size(); ++i) {
@@ -84,77 +107,82 @@ void RenameProcessor::resolveConflicts(std::vector<FileInfo>& files, ConflictRes
     
     for (const auto& pair : nameToIndices) {
         if (pair.second.size() > 1) {
-            std::string baseName = files[pair.second[0]].newName;
-            std::string extension = files[pair.second[0]].extension;
+            hasConflict = true;
             
-            for (size_t j = 1; j < pair.second.size(); ++j) {
-                size_t idx = pair.second[j];
+            if (resolution == ConflictResolution::SKIP) {
+                for (size_t j = 1; j < pair.second.size(); ++j) {
+                    size_t idx = pair.second[j];
+                    files[idx].newName = files[idx].name;
+                }
+            }
+            else if (resolution == ConflictResolution::AUTO_RENAME) {
+                std::string baseName = files[pair.second[0]].newName;
                 
-                switch (resolution) {
-                    case ConflictResolution::SKIP:
-                        files[idx].newName = files[idx].name;
-                        break;
-                        
-                    case ConflictResolution::OVERWRITE:
-                        break;
-                        
-                    case ConflictResolution::AUTO_RENAME:
-                        int counter = 1;
-                        std::string newName;
-                        bool unique;
-                        do {
-                            newName = getNextAutoRename(baseName, counter);
-                            unique = true;
-                            for (const auto& f : files) {
-                                if (f.newName == newName) {
-                                    unique = false;
-                                    break;
-                                }
-                            }
-                            counter++;
-                        } while (!unique);
-                        
-                        files[idx].newName = newName;
-                        break;
+                for (size_t j = 1; j < pair.second.size(); ++j) {
+                    size_t idx = pair.second[j];
+                    int counter = 1;
+                    std::string newName;
+                    bool unique;
+                    
+                    do {
+                        newName = getNextAutoRename(baseName, counter);
+                        unique = isNameUnique(idx, newName, files[idx].extension, files);
+                        counter++;
+                    } while (!unique);
+                    
+                    files[idx].newName = newName;
                 }
             }
         }
     }
     
-    std::set<std::string> existingFiles;
-    for (const auto& file : files) {
-        std::string fullPath = FileUtils::combinePath(file.directory, file.newName, file.extension);
-        if (FileUtils::fileExists(fullPath) && fullPath != file.originalPath) {
-            existingFiles.insert(file.newName + file.extension);
+    for (size_t i = 0; i < files.size(); ++i) {
+        std::string fullPath = FileUtils::combinePath(files[i].directory, files[i].newName, files[i].extension);
+        
+        if (FileUtils::fileExists(fullPath) && fullPath != files[i].originalPath) {
+            hasConflict = true;
+            
+            if (resolution == ConflictResolution::SKIP) {
+                files[i].newName = files[i].name;
+            }
+            else if (resolution == ConflictResolution::AUTO_RENAME) {
+                int counter = 1;
+                std::string newName;
+                bool unique;
+                
+                do {
+                    newName = getNextAutoRename(files[i].newName, counter);
+                    unique = isNameUnique(i, newName, files[i].extension, files);
+                    counter++;
+                } while (!unique);
+                
+                files[i].newName = newName;
+            }
         }
     }
     
-    if (!existingFiles.empty()) {
+    return hasConflict;
+}
+
+void RenameProcessor::resolveConflicts(std::vector<FileInfo>& files, ConflictResolution resolution) {
+    if (resolution == ConflictResolution::OVERWRITE) {
+        return;
+    }
+    
+    const int maxIterations = 100;
+    int iteration = 0;
+    bool hasConflict = true;
+    
+    while (hasConflict && iteration < maxIterations) {
+        iteration++;
+        hasConflict = checkAndResolveAllConflicts(files, resolution);
+    }
+    
+    if (iteration >= maxIterations && hasConflict) {
         for (auto& file : files) {
-            std::string fullNewName = file.newName + file.extension;
-            if (existingFiles.find(fullNewName) != existingFiles.end()) {
-                switch (resolution) {
-                    case ConflictResolution::SKIP:
-                        file.newName = file.name;
-                        break;
-                        
-                    case ConflictResolution::OVERWRITE:
-                        break;
-                        
-                    case ConflictResolution::AUTO_RENAME:
-                        int counter = 1;
-                        std::string newName;
-                        bool unique;
-                        do {
-                            newName = getNextAutoRename(file.newName, counter);
-                            std::string testPath = FileUtils::combinePath(file.directory, newName, file.extension);
-                            unique = !FileUtils::fileExists(testPath);
-                            counter++;
-                        } while (!unique);
-                        
-                        file.newName = newName;
-                        break;
-                }
+            std::string fullPath = FileUtils::combinePath(file.directory, file.newName, file.extension);
+            if (FileUtils::fileExists(fullPath) && fullPath != file.originalPath) {
+                file.newName = file.name;
             }
         }
     }
