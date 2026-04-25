@@ -15,6 +15,7 @@ void ArgParser::printHelp() {
     std::cout << "1. Add Prefix/Suffix Mode:\n";
     std::cout << "   --prefix <string>      Add prefix before filename\n";
     std::cout << "   --suffix <string>      Add suffix before extension\n";
+    std::cout << "   Note: --prefix and --suffix can be used together\n";
     std::cout << "   Example: --prefix \"photo_\" --suffix \"_2024\"\n\n";
     
     std::cout << "2. Replace Mode:\n";
@@ -28,11 +29,13 @@ void ArgParser::printHelp() {
     std::cout << "   --start <number>       Starting number (default: 1)\n";
     std::cout << "   --padding <digits>     Zero padding width (e.g., 3 for 001, 002)\n";
     std::cout << "   --format <format>      Custom format, variables available:\n";
-    std::cout << "                          [N] or # - Number\n";
-    std::cout << "                          [F] - Original filename\n";
+    std::cout << "                          [N] or [n] - Number\n";
+    std::cout << "                          [F] or [f] - Original filename\n";
+    std::cout << "   Important: [F]/[f] is replaced first, then [N]/[n] placeholders\n";
+    std::cout << "   If no number placeholder ([N]/[n]) is found, number is appended with underscore\n";
     std::cout << "   Example: --numbering --padding 3\n";
     std::cout << "            --numbering --format \"photo_[N]\"\n";
-    std::cout << "            --numbering --format \"[F]_#[N]\"\n\n";
+    std::cout << "            --numbering --format \"[F]_backup_[N]\"\n\n";
     
     std::cout << "4. Case Conversion Mode:\n";
     std::cout << "   --uppercase            Convert to UPPERCASE\n";
@@ -41,6 +44,11 @@ void ArgParser::printHelp() {
     std::cout << "   --camel-case           Convert to camelCase (helloWorld)\n";
     std::cout << "   --snake-case           Convert to snake_case (hello_world)\n";
     std::cout << "   --kebab-case           Convert to kebab-case (hello-world)\n\n";
+    
+    std::cout << "=== Conflict Resolution Options ===\n\n";
+    std::cout << "   --skip-conflict        Skip files with conflicting names (default)\n";
+    std::cout << "   --overwrite            Overwrite existing files (use with caution)\n";
+    std::cout << "   --auto-rename          Auto-rename conflicting files (e.g., file.txt -> file (1).txt)\n\n";
     
     std::cout << "=== General Options ===\n\n";
     std::cout << "   -r, --recursive        Process files in subdirectories recursively\n";
@@ -53,19 +61,22 @@ void ArgParser::printHelp() {
     std::cout << "1. Add prefix to all photos:\n";
     std::cout << "   renamer --prefix \"vacation_\" ./photos\n\n";
     
-    std::cout << "2. Replace \"DSC\" with \"photo\":\n";
+    std::cout << "2. Add both prefix and suffix:\n";
+    std::cout << "   renamer --prefix \"photo_\" --suffix \"_edited\" ./photos\n\n";
+    
+    std::cout << "3. Replace \"DSC\" with \"photo\":\n";
     std::cout << "   renamer --replace \"DSC\" \"photo\" ./photos\n\n";
     
-    std::cout << "3. Sequential numbering (001, 002, 003...):\n";
+    std::cout << "4. Sequential numbering (001, 002, 003...):\n";
     std::cout << "   renamer --numbering --padding 3 ./photos\n\n";
     
-    std::cout << "4. Convert to lowercase:\n";
-    std::cout << "   renamer --lowercase ./files\n\n";
+    std::cout << "5. Custom numbering format:\n";
+    std::cout << "   renamer --numbering --format \"[F]_#[N]\" ./photos\n\n";
     
-    std::cout << "5. Use regex to extract and reorganize:\n";
-    std::cout << "   renamer --regex \"IMG_(\\\\d+)\" \"Image_$1_edited\" ./photos\n\n";
+    std::cout << "6. Convert to lowercase with auto-rename on conflict:\n";
+    std::cout << "   renamer --lowercase --auto-rename ./files\n\n";
     
-    std::cout << "6. Recursive processing with preview:\n";
+    std::cout << "7. Recursive processing with preview:\n";
     std::cout << "   renamer -r --prefix \"backup_\" -n ./documents\n\n";
     
     std::cout << std::string(60, '=') << "\n\n";
@@ -74,6 +85,8 @@ void ArgParser::printHelp() {
 RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
     RenameOptions options;
     bool modeSet = false;
+    bool prefixSet = false;
+    bool suffixSet = false;
     std::string path;
     
     for (int i = 1; i < argc; ++i) {
@@ -88,16 +101,26 @@ RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
             if (i + 1 >= argc) {
                 throw std::runtime_error("--prefix requires a string argument");
             }
-            options.mode = RenameMode::ADD_PREFIX;
             options.prefix = argv[++i];
+            prefixSet = true;
+            if (suffixSet) {
+                options.mode = RenameMode::ADD_PREFIX_SUFFIX;
+            } else {
+                options.mode = RenameMode::ADD_PREFIX;
+            }
             modeSet = true;
         }
         else if (arg == "--suffix") {
             if (i + 1 >= argc) {
                 throw std::runtime_error("--suffix requires a string argument");
             }
-            options.mode = RenameMode::ADD_SUFFIX;
             options.suffix = argv[++i];
+            suffixSet = true;
+            if (prefixSet) {
+                options.mode = RenameMode::ADD_PREFIX_SUFFIX;
+            } else {
+                options.mode = RenameMode::ADD_SUFFIX;
+            }
             modeSet = true;
         }
         else if (arg == "--replace") {
@@ -171,6 +194,15 @@ RenameOptions ArgParser::parseArguments(int argc, char* argv[]) {
         else if (arg == "--kebab-case") {
             options.mode = RenameMode::KEBAB_CASE;
             modeSet = true;
+        }
+        else if (arg == "--skip-conflict") {
+            options.conflictResolution = ConflictResolution::SKIP;
+        }
+        else if (arg == "--overwrite") {
+            options.conflictResolution = ConflictResolution::OVERWRITE;
+        }
+        else if (arg == "--auto-rename") {
+            options.conflictResolution = ConflictResolution::AUTO_RENAME;
         }
         else if (arg == "-r" || arg == "--recursive") {
             options.recursive = true;

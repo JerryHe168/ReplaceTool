@@ -4,10 +4,12 @@
 #include <string>
 #include <vector>
 #include <regex>
+#include <set>
 
 enum class RenameMode {
     ADD_PREFIX,
     ADD_SUFFIX,
+    ADD_PREFIX_SUFFIX,
     REPLACE,
     REGEX_REPLACE,
     NUMBERING,
@@ -17,6 +19,12 @@ enum class RenameMode {
     CAMEL_CASE,
     SNAKE_CASE,
     KEBAB_CASE
+};
+
+enum class ConflictResolution {
+    SKIP,
+    OVERWRITE,
+    AUTO_RENAME
 };
 
 struct RenameOptions {
@@ -31,6 +39,7 @@ struct RenameOptions {
     int padding;
     std::string numberFormat;
     std::string targetPath;
+    ConflictResolution conflictResolution;
     bool includeExtensions;
     bool recursive;
     bool dryRun;
@@ -40,6 +49,7 @@ struct RenameOptions {
         mode(RenameMode::ADD_PREFIX),
         startNumber(1),
         padding(0),
+        conflictResolution(ConflictResolution::SKIP),
         includeExtensions(false),
         recursive(false),
         dryRun(false),
@@ -89,13 +99,20 @@ class RenameProcessor {
 public:
     static std::string processFileName(const std::string& name, const RenameOptions& options, int index = 0);
     static void processFiles(std::vector<FileInfo>& files, const RenameOptions& options);
-    static bool executeRename(std::vector<FileInfo>& files, bool dryRun = false, bool verbose = false);
+    static bool executeRename(std::vector<FileInfo>& files, const RenameOptions& options);
+    static std::string generateUniqueName(const std::string& directory, const std::string& name, 
+                                           const std::string& extension, 
+                                           const std::set<std::string>& usedNames,
+                                           ConflictResolution resolution);
+    static void resolveConflicts(std::vector<FileInfo>& files, ConflictResolution resolution);
     
 private:
     static std::string addPrefix(const std::string& name, const std::string& prefix);
     static std::string addSuffix(const std::string& name, const std::string& suffix);
+    static std::string addPrefixAndSuffix(const std::string& name, const std::string& prefix, const std::string& suffix);
     static std::string applyNumbering(const std::string& name, const std::string& format, int startNumber, int index, int padding);
     static std::string applyCaseTransformation(const std::string& name, RenameMode mode);
+    static std::string getNextAutoRename(const std::string& name, int counter);
 };
 
 class ArgParser {

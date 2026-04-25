@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
         
         RenameProcessor::processFiles(files, options);
         
-        bool success = RenameProcessor::executeRename(files, options.dryRun, options.verbose || !options.dryRun);
+        bool success = RenameProcessor::executeRename(files, options);
         
         return success ? 0 : 1;
         
