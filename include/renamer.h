@@ -5,6 +5,8 @@
 #include <vector>
 #include <regex>
 #include <set>
+#include <functional>
+#include <cstdint>
 
 enum class RenameMode {
     ADD_PREFIX,
@@ -87,6 +89,14 @@ struct FileInfo {
     std::string getNewFullPath() const;
 };
 
+enum class PathError {
+    OK,
+    TOO_LONG,
+    INVALID_CHARACTERS,
+    EMPTY_PATH,
+    RESERVED_NAME
+};
+
 class FileUtils {
 public:
     static std::vector<FileInfo> getFilesInDirectory(const std::string& path, bool recursive);
@@ -103,6 +113,24 @@ public:
     static bool matchesExtensions(const std::string& extension, const std::vector<std::string>& extList);
     static bool matchesPattern(const std::string& name, const std::vector<std::string>& patterns);
     static bool matchesRegex(const std::string& name, const std::string& regexPattern);
+    
+    static PathError validateFileName(const std::string& name);
+    static PathError validateFilePath(const std::string& path);
+    static std::string sanitizeFileName(const std::string& name, char replacement = '_');
+    static bool isSymlink(const std::string& path);
+    static size_t getPathLength(const std::string& path);
+    static size_t getMaxPathLength();
+    
+    static size_t utf8CharacterCount(const std::string& str);
+    static size_t utf8BytePosition(const std::string& str, size_t charIndex);
+
+private:
+    using FileFilterFunc = std::function<bool(const std::string&, const std::string&, const std::string&)>;
+    using DirFilterFunc = std::function<bool(const std::string&)>;
+    
+    static std::vector<FileInfo> iterateDirectory(const std::string& path, bool recursive,
+                                                    FileFilterFunc fileFilter,
+                                                    DirFilterFunc dirFilter);
 };
 
 class StringUtils {

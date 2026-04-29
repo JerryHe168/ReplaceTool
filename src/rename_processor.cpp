@@ -221,13 +221,51 @@ bool RenameProcessor::executeRename(std::vector<FileInfo>& files, const RenameOp
             continue;
         }
         
+        PathError nameError = FileUtils::validateFileName(file.newName);
+        if (nameError != PathError::OK) {
+            std::string errorMsg;
+            switch (nameError) {
+                case PathError::INVALID_CHARACTERS:
+                    errorMsg = "contains invalid characters";
+                    break;
+                case PathError::RESERVED_NAME:
+                    errorMsg = "is a reserved name";
+                    break;
+                case PathError::EMPTY_PATH:
+                    errorMsg = "is empty";
+                    break;
+                default:
+                    errorMsg = "has an error";
+            }
+            
+            if (options.verbose) {
+                std::cout << "Skipping: " << oldName << " -> " << newName 
+                          << " (new name " << errorMsg << ")\n";
+            }
+            failCount++;
+            success = false;
+            continue;
+        }
+        
+        std::string newFullPath = file.getNewFullPath();
+        PathError pathError = FileUtils::validateFilePath(newFullPath);
+        if (pathError != PathError::OK) {
+            if (options.verbose) {
+                std::cout << "Skipping: " << oldName << " -> " << newName 
+                          << " (new path is too long)\n";
+            }
+            failCount++;
+            success = false;
+            continue;
+        }
+        
         if (options.verbose) {
             std::cout << std::left << std::setw(static_cast<int>(maxNameLength + 5)) 
                       << oldName << " -> " << newName;
         }
         
         if (!options.dryRun) {
-            bool result = FileUtils::renameFile(file.originalPath, file.getNewFullPath());
+            bool result = FileUtils::renameFile(file.originalPath, newFullPath);
             if (result) {
                 if (options.verbose) {
                     std::cout << " [OK]\n";
@@ -286,17 +324,36 @@ std::string RenameProcessor::applyNumbering(const std::string& name, const std::
     if (!format.empty()) {
         std::string result = format;
         
-        result = StringUtils::replaceAll(result, "[F]", name);
-        result = StringUtils::replaceAll(result, "[f]", name);
-        
-        bool hasNumberPlaceholder = false;
-        if (result.find("[N]") != std::string::npos || 
-            result.find("[n]") != std::string::npos) {
-            hasNumberPlaceholder = true;
+        size_t fPos = result.find("[F]");
+        while (fPos != std::string::npos) {
+            result.replace(fPos, 3, name);
+            fPos = result.find("[F]", fPos + name.length());
         }
         
-        result = StringUtils::replaceAll(result, "[N]", numStr);
-        result = StringUtils::replaceAll(result, "[n]", numStr);
+        fPos = result.find("[f]");
+        while (fPos != std::string::npos) {
+            result.replace(fPos, 3, name);
+            fPos = result.find("[f]", fPos + name.length());
+        }
+        
+        bool hasNumberPlaceholder = false;
+        size_t nPos = result.find("[N]");
+        if (nPos != std::string::npos) {
+            hasNumberPlaceholder = true;
+            while (nPos != std::string::npos) {
+                result.replace(nPos, 3, numStr);
+                nPos = result.find("[N]", nPos + numStr.length());
+            }
+        }
+        
+        nPos = result.find("[n]");
+        if (nPos != std::string::npos) {
+            hasNumberPlaceholder = true;
+            while (nPos != std::string::npos) {
+                result.replace(nPos, 3, numStr);
+                nPos = result.find("[n]", nPos + numStr.length());
+            }
+        }
         
         if (!hasNumberPlaceholder) {
             result = result + "_" + numStr;
@@ -313,15 +370,18 @@ std::string RenameProcessor::applyNumbering(const std::string& name, const std::
             return name + "_" + numStr;
             
         case NumberPosition::INSERT: {
-            std::string result = name;
+            size_t charCount = FileUtils::utf8CharacterCount(name);
             int pos = insertPos;
+            
             if (pos < 0) {
                 pos = 0;
+            } else if (static_cast<size_t>(pos) > charCount) {
+                pos = static_cast<int>(charCount);
             }
-            if (static_cast<size_t>(pos) > result.length()) {
-                pos = static_cast<int>(result.length());
-            }
-            result.insert(static_cast<size_t>(pos), numStr);
+            
+            size_t bytePos = FileUtils::utf8BytePosition(name, static_cast<size_t>(pos));
+            std::string result = name;
+            result.insert(bytePos, numStr);
             return result;
         }
             
