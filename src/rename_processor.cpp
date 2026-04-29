@@ -324,35 +324,39 @@ std::string RenameProcessor::applyNumbering(const std::string& name, const std::
     if (!format.empty()) {
         std::string result = format;
         
-        size_t fPos = result.find("[F]");
-        while (fPos != std::string::npos) {
-            result.replace(fPos, 3, name);
-            fPos = result.find("[F]", fPos + name.length());
+        std::vector<size_t> fPositions;
+        size_t pos = 0;
+        while ((pos = result.find("[F]", pos)) != std::string::npos) {
+            fPositions.push_back(pos);
+            pos += 3;
         }
-        
-        fPos = result.find("[f]");
-        while (fPos != std::string::npos) {
-            result.replace(fPos, 3, name);
-            fPos = result.find("[f]", fPos + name.length());
+        pos = 0;
+        while ((pos = result.find("[f]", pos)) != std::string::npos) {
+            fPositions.push_back(pos);
+            pos += 3;
+        }
+        std::sort(fPositions.rbegin(), fPositions.rend());
+        for (size_t p : fPositions) {
+            result.replace(p, 3, name);
         }
         
         bool hasNumberPlaceholder = false;
-        size_t nPos = result.find("[N]");
-        if (nPos != std::string::npos) {
+        std::vector<size_t> nPositions;
+        pos = 0;
+        while ((pos = result.find("[N]", pos)) != std::string::npos) {
+            nPositions.push_back(pos);
+            pos += 3;
             hasNumberPlaceholder = true;
-            while (nPos != std::string::npos) {
-                result.replace(nPos, 3, numStr);
-                nPos = result.find("[N]", nPos + numStr.length());
-            }
         }
-        
-        nPos = result.find("[n]");
-        if (nPos != std::string::npos) {
+        pos = 0;
+        while ((pos = result.find("[n]", pos)) != std::string::npos) {
+            nPositions.push_back(pos);
+            pos += 3;
             hasNumberPlaceholder = true;
-            while (nPos != std::string::npos) {
-                result.replace(nPos, 3, numStr);
-                nPos = result.find("[n]", nPos + numStr.length());
-            }
+        }
+        std::sort(nPositions.rbegin(), nPositions.rend());
+        for (size_t p : nPositions) {
+            result.replace(p, 3, numStr);
         }
         
         if (!hasNumberPlaceholder) {
