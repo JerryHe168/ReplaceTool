@@ -148,45 +148,60 @@ bool FileUtils::shouldIncludeFile(const std::string& name, const std::string& ex
     return include;
 }
 
+void FileUtils::iterateDirectoryRecursive(const fs::path& currentPath,
+                                            std::vector<FileInfo>& files,
+                                            FileFilterFunc fileFilter,
+                                            const std::vector<std::string>& excludeDirs) {
+    try {
+        for (const auto& entry : fs::directory_iterator(currentPath)) {
+            if (fs::is_directory(entry.status())) {
+                if (!fs::is_symlink(entry.path())) {
+                    std::string dirName = entry.path().filename().string();
+                    bool isExcluded = false;
+                    for (const auto& excluded : excludeDirs) {
+                        if (dirName == excluded) {
+                            isExcluded = true;
+                            break;
+                        }
+                    }
+                    if (!isExcluded) {
+                        iterateDirectoryRecursive(entry.path(), files, fileFilter, excludeDirs);
+                    }
+                }
+            } else if (fs::is_regular_file(entry.status())) {
+                FileInfo info;
+                info.originalPath = entry.path().string();
+                info.directory = extractDirectory(info.originalPath);
+                info.name = extractFileName(info.originalPath);
+                info.extension = extractExtension(info.originalPath);
+                info.newName = info.name;
+                
+                if (!fileFilter || fileFilter(info.name, info.extension, info.directory)) {
+                    files.push_back(info);
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Error reading directory: " + std::string(e.what()));
+    }
+}
+
 std::vector<FileInfo> FileUtils::iterateDirectory(const std::string& path, bool recursive,
                                                     FileFilterFunc fileFilter,
-                                                    DirFilterFunc dirFilter) {
+                                                    const std::vector<std::string>& excludeDirs) {
     std::vector<FileInfo> files;
     
     if (!fs::exists(path)) {
         throw std::runtime_error("Path does not exist: " + path);
     }
     
+    if (!fs::is_directory(path)) {
+        throw std::runtime_error("Path is not a directory: " + path);
+    }
+    
     try {
         if (recursive) {
-            for (const auto& entry : fs::recursive_directory_iterator(path)) {
-                if (fs::is_regular_file(entry.status())) {
-                    FileInfo info;
-                    info.originalPath = entry.path().string();
-                    info.directory = extractDirectory(info.originalPath);
-                    info.name = extractFileName(info.originalPath);
-                    info.extension = extractExtension(info.originalPath);
-                    info.newName = info.name;
-                    
-                    if (dirFilter) {
-                        fs::path entryPath = entry.path();
-                        bool inExcludedDir = false;
-                        for (auto it = entryPath.begin(); it != entryPath.end(); ++it) {
-                            if (!dirFilter(it->string())) {
-                                inExcludedDir = true;
-                                break;
-                            }
-                        }
-                        if (inExcludedDir) {
-                            continue;
-                        }
-                    }
-                    
-                    if (!fileFilter || fileFilter(info.name, info.extension, info.directory)) {
-                        files.push_back(info);
-                    }
-                }
-            }
+            iterateDirectoryRecursive(path, files, fileFilter, excludeDirs);
         } else {
             for (const auto& entry : fs::directory_iterator(path)) {
                 if (fs::is_regular_file(entry.status())) {
@@ -215,7 +230,8 @@ std::vector<FileInfo> FileUtils::iterateDirectory(const std::string& path, bool 
 }
 
 std::vector<FileInfo> FileUtils::getFilesInDirectory(const std::string& path, bool recursive) {
-    return iterateDirectory(path, recursive, nullptr, nullptr);
+    std::vector<std::string> emptyExcludeDirs;
+    return iterateDirectory(path, recursive, nullptr, emptyExcludeDirs);
 }
 
 std::vector<FileInfo> FileUtils::getFilesInDirectory(const std::string& path, bool recursive, const RenameOptions& options) {
@@ -223,14 +239,7 @@ std::vector<FileInfo> FileUtils::getFilesInDirectory(const std::string& path, bo
         return shouldIncludeFile(name, ext, dir, options);
     };
     
-    DirFilterFunc dirFilter = nullptr;
-    if (!options.excludeDirectories.empty()) {
-        dirFilter = [&options](const std::string& dirName) {
-            return !shouldExcludeDirectory(dirName, options.excludeDirectories);
-        };
-    }
-    
-    return iterateDirectory(path, recursive, fileFilter, dirFilter);
+    return iterateDirectory(path, recursive, fileFilter, options.excludeDirectories);
 }
 
 std::string FileUtils::extractDirectory(const std::string& path) {
