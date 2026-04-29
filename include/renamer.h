@@ -7,6 +7,7 @@
 #include <set>
 #include <functional>
 #include <cstdint>
+#include <filesystem>
 
 enum class RenameMode {
     ADD_PREFIX,
@@ -126,11 +127,15 @@ public:
 
 private:
     using FileFilterFunc = std::function<bool(const std::string&, const std::string&, const std::string&)>;
-    using DirFilterFunc = std::function<bool(const std::string&)>;
+    
+    static void iterateDirectoryRecursive(const std::filesystem::path& currentPath,
+                                            std::vector<FileInfo>& files,
+                                            FileFilterFunc fileFilter,
+                                            const std::vector<std::string>& excludeDirs);
     
     static std::vector<FileInfo> iterateDirectory(const std::string& path, bool recursive,
                                                     FileFilterFunc fileFilter,
-                                                    DirFilterFunc dirFilter);
+                                                    const std::vector<std::string>& excludeDirs);
 };
 
 class StringUtils {
